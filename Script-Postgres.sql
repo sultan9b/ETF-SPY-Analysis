@@ -45,3 +45,98 @@ create index if not exists idx_unemp_analysis_entity_year on dm.unemployment_ana
 create index if not exists idx_unemp_analysis_refresh_date on dm.unemployment_analysis(dm_refresh_date);
 comment on table dm.unemployment_analysis is 'Аналитическая витрина по безработице. Данные обновляются по расписанию через DAG.';
 
+
+
+/* materialized представления*/
+-- Витрина 1. Топ 50 по безработице за последний год
+
+create materialized view if not exists dm.mv_top_unemployment_countries as
+select 
+	entity,
+	code,
+	year,
+	unemployment_rate,
+	rank_by_year,
+	unemployment_category,
+	trend_direction
+from dm.unemployment_analysis 
+where year = (select max(year) from dm.unemployment_analysis)
+order by unemployment_rate desc
+limit 50;
+
+-- Индекс для быстрого обновления
+create unique index if not exists idx_mv_top_countries on dm.mv_top_unemployment_countries(entity, year);
+
+
+-- Витрина 2. Динамика по годам для топ-10 стран за последние 10 лет
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS dm.mv_unemployment_trends AS
+WITH country_stats AS (
+    SELECT 
+        entity,
+        AVG(unemployment_rate) as avg_unemployment_last_5_years
+    FROM dm.unemployment_analysis
+    WHERE year >= (SELECT MAX(year) - 5 FROM dm.unemployment_analysis)
+    GROUP BY entity
+),
+top_countries AS (
+    SELECT 
+        entity
+    FROM country_stats
+    ORDER BY avg_unemployment_last_5_years DESC
+    LIMIT 10
+)
+SELECT 
+    d.entity,
+    d.code,
+    d.year,
+    d.unemployment_rate,
+    d.trend_direction,
+    d.rank_by_year,
+    d.unemployment_category
+FROM dm.unemployment_analysis d
+WHERE d.entity IN (SELECT entity FROM top_countries)
+  AND d.year >= (SELECT MAX(year) - 10 FROM dm.unemployment_analysis)
+ORDER BY d.entity, d.year;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_trends 
+    ON dm.mv_unemployment_trends(entity, year);
+
+
+
+-- Витрина 3: Статистика по категориям
+CREATE MATERIALIZED VIEW IF NOT EXISTS dm.mv_unemployment_by_category AS
+SELECT 
+    unemployment_category,
+    year,
+    COUNT(*) as country_count,
+    ROUND(AVG(unemployment_rate), 2) as avg_rate,
+    MIN(unemployment_rate) as min_rate,
+    MAX(unemployment_rate) as max_rate
+FROM dm.unemployment_analysis
+GROUP BY unemployment_category, year
+ORDER BY year DESC, avg_rate DESC;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_category 
+    ON dm.mv_unemployment_by_category(unemployment_category, year);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
