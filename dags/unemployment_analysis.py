@@ -188,4 +188,4 @@ with DAG(
     end = EmptyOperator(task_id="end")
 
     # УПРОЩЕННЫЙ ПОТОК ВЫПОЛНЕНИЯ
-    start  >> upsert_into_dm >> refresh_materialized_views >> end #>> sensor_on_ods_layer
+    start  >> sensor_on_ods_layer >> upsert_into_dm >> refresh_materialized_views >> end
