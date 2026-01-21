@@ -93,6 +93,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     restart: always
+    volumes:
+      - postgres-dwh-volume:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
@@ -101,10 +103,12 @@ services:
     restart: always
     user: "1000:1000"
     volumes:
-      - ./data:/data
+      - metabase-data:/metabase-data
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin123
+      - MB_DB_FILE=/metabase-data/metabase.db
+
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
@@ -324,3 +328,5 @@ services:
 
 volumes:
   postgres-db-volume:
+  postgres-dwh-volume:
+  metabase-data:
